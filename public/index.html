@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirGuard — Environmental Intelligence</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+        :root {
+            --color-optimal: #10B981;
+            --color-moderate: #FACC15;
+            --color-fair: #F97316;
+            --color-primary: var(--color-optimal);
+            --color-primary-glow: rgba(16, 185, 129, 0.4);
+            --color-amber: var(--color-moderate);
+            --color-red: var(--color-fair);
+            --bg-deep: #020617;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #F8FAFC;
+            --text-dim: #94A3B8;
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-deep);
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+                url('https://www.stayvista.com/blog/wp-content/uploads/2024/08/Landscape_reflection_in_Dal_Lake_Srinagar_Kashmir_India.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 1rem 2rem 2rem;
+            line-height: 1.4;
+        }
+
+        /* Professional Glassmorphism */
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow: 
+                0 4px 6px -1px rgba(0, 0, 0, 0.1), 
+                0 10px 20px -5px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .glass:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        /* Navigation */
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.75rem 1.5rem;
+            margin: 0 auto 1.5rem;
+            max-width: 1300px;
+            position: sticky; top: 0.5rem; z-index: 100;
+        }
+        
+        .logo { 
+            display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; letter-spacing: -0.04em;
+            color: #ffffff;
+        }
+        .logo-dot { width: 8px; height: 8px; background: var(--color-primary); border-radius: 3px; box-shadow: 0 0 15px var(--color-primary-glow); transform: rotate(45deg); }
+
+        /* User & Auth */
+        .header-right { display: flex; align-items: center; gap: 1rem; }
+        .auth-btns { display: flex; align-items: center; gap: 0.5rem; }
+        
+        .btn-ghost { 
+            background: transparent; border: none; color: var(--text-main); 
+            padding: 8px 16px; border-radius: 12px; font-weight: 600; font-size: 13px;
+            cursor: pointer; transition: 0.2s; opacity: 0.8;
+        }
+        .btn-ghost:hover { opacity: 1; background: rgba(255,255,255,0.05); }
+
+        .btn-pill { 
+            background: #fff; color: #000; border: none; 
+            padding: 8px 20px; border-radius: 12px; font-weight: 700; font-size: 13px;
+            cursor: pointer; transition: 0.3s;
+        }
+        .btn-pill:hover { transform: scale(1.05); }
+
+        .user-profile {
+            display: flex; align-items: center; gap: 10px;
+            padding: 4px 12px 4px 4px; border-radius: 100px;
+            background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+        }
+        .user-avatar {
+            width: 28px; height: 28px; background: var(--color-primary);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 12px; color: white;
+        }
+
+        /* Location Section */
+        .location-summary { 
+            max-width: 1300px; margin: 0 auto 1.5rem; 
+            padding: 1.5rem 2rem; border-radius: 24px;
+        }
+        .loc-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; gap: 1.5rem; }
+        
+        .loc-main-info { display: flex; flex-direction: column; gap: 0.25rem; }
+        .loc-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-primary); }
+        .loc-name-display { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }
+
+        .loc-controls-wrap { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 16px; border: 1px solid var(--glass-border); }
+        .select-group { display: flex; flex-direction: column; gap: 1px; padding: 0 8px; }
+        .select-group label { font-size: 9px; font-weight: 800; color: #fff; opacity: 0.5; text-transform: uppercase; }
+        .premium-select { background: transparent; border: none; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; outline: none; }
+        .premium-select option { background: #0F172A; color: #fff; padding: 10px; }
+        
+        .btn-follow {
+            background: var(--color-primary); color: #fff; border: none;
+            padding: 10px 20px; border-radius: 12px; font-weight: 700; font-size: 13px;
+            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.3s;
+        }
+        .btn-follow.active { background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); }
+
+        /* Dashboard Grid */
+        .main-dashboard-content {
+            display: grid; grid-template-columns: 1fr 360px; gap: 1.5rem;
+            max-width: 1300px; margin: 0 auto;
+        }
+
+        .module-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .module-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #ffffff; }
+
+        /* Pollutant Grid */
+        .pollutant-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        
+        .aqi-hero {
+            grid-column: span 3; padding: 1rem 1.5rem !important;
+            display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; /* Left aligned */
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%) !important;
+            min-height: 120px;
+        }
+        .aqi-hero-val { font-size: 42px; font-weight: 900; line-height: 1; letter-spacing: -0.04em; color: #ffffff; }
+        
+        .p-card {
+            padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            backdrop-filter: blur(15px);
+        }
+        .p-card-head { display: flex; justify-content: space-between; align-items: flex-start; }
+        .p-name { font-size: 12px; font-weight: 800; color: #ffffff; opacity: 0.9; }
+        .p-status-pill { 
+            display: inline-flex;
+            align-items: center;
+            font-size: 10px; 
+            font-weight: 800; 
+            padding: 5px 12px; 
+            border-radius: 100px; /* Pill shape like nav badge */
+            text-transform: uppercase; 
+            letter-spacing: 0.05em;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+        }
+        .p-value-row { display: flex; align-items: baseline; gap: 4px; }
+        .p-value { font-size: 24px; font-weight: 800; color: #ffffff; }
+        .p-unit { font-size: 12px; color: #ffffff; opacity: 0.7; font-weight: 600; }
+
+        /* Health & Insights */
+        .sidebar-stack { display: flex; flex-direction: column; gap: 0.75rem; }
+        .insight-card { padding: 1rem; }
+        .bulletin-card {
+            display: flex; flex-direction: column; gap: 0;
+            padding: 0 !important; overflow: hidden;
+        }
+        .bulletin-item {
+            padding: 0.5rem 1rem; border-bottom: 1px solid var(--glass-border);
+            display: flex; gap: 1rem; align-items: center;
+            transition: 0.2s;
+        }
+        .bulletin-item:last-child { border-bottom: none; }
+        .bulletin-item:hover { background: rgba(255,255,255,0.02); }
+        
+        .bulletin-icon {
+            width: 32px; height: 32px; border-radius: 10px;
+            background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; margin-top: 2px;
+        }
+        .bulletin-content { display: flex; flex-direction: column; gap: 2px; }
+        .bulletin-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; color: #fff; }
+        .bulletin-text { font-size: 13px; font-weight: 600; line-height: 1.5; color: #fff; }
+
+        .chart-container { height: 220px; margin-top: 0.5rem; }
+
+        /* Utility Classes */
+        .hidden { display: none !important; }
+        
+        .badge-status {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.05em; color: var(--color-primary);
+            background: rgba(16, 185, 129, 0.1);
+            padding: 6px 12px; border-radius: 100px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-dot {
+            width: 5px; height: 5px; background: var(--color-primary);
+            border-radius: 50%; box-shadow: 0 0 8px var(--color-primary);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Alerts Sidebar */
+        .alerts-sidebar {
+            position: fixed; top: 0; right: -400px; width: 360px; height: 100vh;
+            z-index: 1000; padding: 1.5rem; transition: 0.5s cubic-bezier(0.8, 0, 0.2, 1);
+            border-radius: 30px 0 0 30px; border-right: none;
+            background: rgba(15, 23, 42, 0.9) !important;
+        }
+        .alerts-sidebar.open { right: 0; }
+        
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        
+        .alerts-list { display: flex; flex-direction: column; gap: 0.75rem; overflow-y: auto; height: calc(100% - 60px); padding-right: 8px; }
+        .alerts-list::-webkit-scrollbar { width: 3px; }
+        .alerts-list::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 10px; }
+
+        .alert-item {
+            padding: 1.25rem; border-radius: 16px; background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border); position: relative; overflow: hidden;
+        }
+        .alert-item.critical { border-left: 3px solid var(--color-red); }
+        .alert-item .time { font-size: 9px; font-weight: 800; color: var(--text-dim); text-transform: uppercase; margin-bottom: 0.25rem; display: block; }
+        .alert-item .title { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+        .alert-item .desc { font-size: 12px; color: var(--text-dim); line-height: 1.3; }
+
+        .btn-icon {
+            width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border: 1px solid var(--glass-border); background: var(--glass-bg); color: #fff;
+            position: relative; transition: 0.2s;
+        }
+        .btn-icon:hover { background: rgba(255,255,255,0.1); transform: scale(1.05); }
+        
+        .noti-badge {
+            position: absolute; top: 8px; right: 8px; width: 8px; height: 8px;
+            background: var(--color-red); border-radius: 50%; border: 2px solid var(--bg-deep);
+            box-shadow: 0 0 8px var(--color-red);
+        }
+
+        .empty-state { text-align: center; padding: 3rem 1.5rem; color: var(--text-dim); font-size: 13px; font-weight: 500; }
+
+        /* Auth Modals */
+        .modal-overlay {
+            position: fixed; inset: 0; 
+            background: rgba(2, 6, 23, 0.7); 
+            backdrop-filter: blur(15px);
+            z-index: 1000; display: flex; align-items: center; justify-content: center;
+            padding: 2rem; transition: 0.3s ease;
+        }
+        
+        .auth-card {
+            width: 100%; max-width: 400px; padding: 2.5rem;
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            box-shadow: 
+                0 8px 32px 0 rgba(0, 0, 0, 0.8),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+            border-radius: 32px;
+        }
+
+        .auth-title { font-size: 28px; font-weight: 800; margin-bottom: 0.5rem; color: #fff; letter-spacing: -0.02em; }
+        .auth-subtitle { font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 2rem; }
+
+        .form-group { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+        
+        .glass-input {
+            width: 100%; padding: 14px 18px; border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff; font-family: inherit; font-size: 15px; font-weight: 500;
+            outline: none; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.07); border-color: var(--color-primary);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+            transform: scale(1.02);
+        }
+
+        .btn-auth-submit {
+            width: 100%; padding: 14px; border-radius: 12px;
+            background: #fff; color: #000; font-weight: 800; font-size: 14px;
+            border: none; cursor: pointer; transition: 0.3s; margin-top: 0.5rem;
+        }
+        .btn-auth-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255,255,255,0.1); }
+
+        .auth-switch {
+            margin-top: 1.5rem; text-align: center; font-size: 13px; color: var(--text-dim);
+        }
+        .auth-switch span { color: var(--color-primary); font-weight: 700; cursor: pointer; }
+
+        /* Responsive */
+        @media (max-width: 1280px) {
+            .main-dashboard-content { grid-template-columns: 1fr; }
+            body { padding: 1rem 1rem 2rem; }
+        }
+
+        @media (max-width: 768px) {
+            .pollutant-grid { grid-template-columns: repeat(2, 1fr); }
+            .aqi-hero { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
+            .loc-header-row { flex-direction: column; align-items: flex-start; gap: 1rem; }
+            .loc-name-display { font-size: 24px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="glass">
+        <div class="logo"><div class="logo-dot"></div>AirGuard</div>
+        
+        <div class="header-right">
+            <div id="authNav" class="auth-btns">
+                <button class="btn-ghost" onclick="showAuthModal('login')">Login</button>
+                <button class="btn-pill" onclick="showAuthModal('signup')">Sign Up</button>
+            </div>
+            <div id="userNav" class="auth-btns hidden">
+                <div class="user-profile">
+                    <div class="user-avatar" id="userInitial">U</div>
+                    <span id="navUsername" style="font-weight: 700;"></span>
+                </div>
+                <button class="btn-ghost" onclick="logout()" style="color: var(--color-red); opacity: 1;">Logout</button>
+            </div>
+            <div class="badge-status">
+                <div class="status-dot"></div> Live
+            </div>
+            
+            <button class="btn-icon glass" id="notiBtn" onclick="toggleAlerts()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                <div id="notiBadge" class="noti-badge hidden"></div>
+            </button>
+        </div>
+    </header>
+
+    <!-- Alerts Sidebar -->
+    <div id="alertsSidebar" class="alerts-sidebar glass">
+        <div class="sidebar-header">
+            <h3 class="module-title" style="margin-bottom: 0;">Intelligence Alerts</h3>
+            <button class="btn-icon" onclick="toggleAlerts()" style="background: none; border: none; color: var(--text-dim); cursor: pointer;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div id="alertsContainer" class="alerts-list">
+            <div class="empty-state">
+                <p>No active alerts for your followed locations.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="location-summary glass">
+        <div class="loc-header-row">
+            <div class="loc-main-info">
+                <span class="loc-label">Active Monitoring Station</span>
+                <h1 id="activeLocationName" class="loc-name-display">Loading Station...</h1>
+                <p id="summary-desc" style="color: rgba(255,255,255,0.85); font-weight: 600;"></p>
+            </div>
+            
+            <div class="loc-controls-wrap">
+                <div class="select-group" style="min-width: 250px;">
+                    <label>Monitoring Station</label>
+                    <select id="locationSelect" class="premium-select" onchange="changeLocation()">
+                        <option value="loc-001">Chennai, Tamil Nadu</option>
+                        <option value="loc-002">Mumbai, Maharashtra</option>
+                        <option value="loc-003">Delhi, Delhi</option>
+                        <option value="loc-004">Kolkata, West Bengal</option>
+                        <option value="loc-005">Hyderabad, Telangana</option>
+                        <option value="loc-006">Ahmedabad, Gujarat</option>
+                    </select>
+                </div>
+                <button id="followBtn" class="btn-follow" onclick="toggleFollow()">
+                    Follow Station
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-dashboard-content">
+        <div class="dashboard-left">
+            <div class="module-header">
+                <h3 class="module-title">Atmospheric Analysis</h3>
+            </div>
+
+            <div class="pollutant-grid">
+                <div class="glass p-card aqi-hero" id="aqiHeroCard">
+                    <div class="p-card-head">
+                        <span class="p-name">Air Quality Index</span>
+                        <span id="badge-aqi-grid" class="p-status-pill">--</span>
+                    </div>
+                    <div class="p-value-row">
+                        <span id="val-aqi-grid" class="p-value">--</span><span class="p-unit" style="font-size: 14px; margin-left: 8px;">AQI</span>
+                    </div>
+                </div>
+
+                <!-- Pollutant Cards -->
+                <div class="glass p-card">
+                    <div class="p-card-head">
+                        <span class="p-name">PM2.5</span>
+                        <span id="badge-pm25" class="p-status-pill">--</span>
+                    </div>
+                    <div class="p-value-row">
+                        <span id="val-pm25" class="p-value">--</span><span class="p-unit">μg/m³</span>
+                    </div>
+                </div>
+                <div class="glass p-card">
+                    <div class="p-card-head">
+                        <span class="p-name">PM10</span>
+                        <span id="badge-pm10" class="p-status-pill">--</span>
+                    </div>
+                    <div class="p-value-row">
+                        <span id="val-pm10" class="p-value">--</span><span class="p-unit">μg/m³</span>
+                    </div>
+                </div>
+                <div class="glass p-card">
+                    <div class="p-card-head">
+                        <span class="p-name">Nitrogen Dioxide</span>
+                        <span id="badge-no2" class="p-status-pill">--</span>
+                    </div>
+                    <div class="p-value-row">
+                        <span id="val-no2" class="p-value">--</span><span class="p-unit">ppb</span>
+                    </div>
+                </div>
+                <div class="glass p-card">
+                    <div class="p-card-head">
+                        <span class="p-name">Ozone</span>
+                        <span id="badge-o3" class="p-status-pill">--</span>
+                    </div>
+                    <div class="p-value-row">
+                        <span id="val-o3" class="p-value">--</span><span class="p-unit">ppb</span>
+                    </div>
+                </div>
+                <div class="glass p-card">
+                    <div class="p-card-head">
+                        <span class="p-name">Sulfur Dioxide</span>
+                        <span id="badge-so2" class="p-status-pill">--</span>
+                    </div>
+                    <div class="p-value-row">
+                        <span id="val-so2" class="p-value">--</span><span class="p-unit">ppb</span>
+                    </div>
+                </div>
+                <div class="glass p-card">
+                    <div class="p-card-head">
+                        <span class="p-name">Carbon Monoxide</span>
+                        <span id="badge-co" class="p-status-pill">--</span>
+                    </div>
+                    <div class="p-value-row">
+                        <span id="val-co" class="p-value">--</span><span class="p-unit">ppm</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-stack">
+            <h3 class="module-title" style="margin-bottom: 0.5rem; padding-left: 0.5rem;">Health Advisory</h3>
+            <div id="recContainer" class="sidebar-stack">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal-overlay hidden">
+        <div class="auth-card glass">
+            <div id="loginForm">
+                <h2 class="auth-title">Login</h2>
+                <p class="auth-subtitle">Welcome back. Please login to your account.</p>
+                <div class="form-group">
+                    <input type="email" id="loginEmail" class="glass-input" placeholder="Email Address">
+                    <input type="password" id="loginPassword" class="glass-input" placeholder="Password">
+                </div>
+                <button class="btn-auth-submit" onclick="submitLogin()">Login</button>
+                <p class="auth-switch">Don't have an account? <span onclick="toggleAuth('signup')">Sign Up</span></p>
+            </div>
+            <div id="signupForm" class="hidden">
+                <h2 class="auth-title">Sign Up</h2>
+                <p class="auth-subtitle">Create your account to get started.</p>
+                <div class="form-group">
+                    <input type="text" id="signupName" class="glass-input" placeholder="Full Name">
+                    <input type="email" id="signupEmail" class="glass-input" placeholder="Email Address">
+                    <input type="password" id="signupPassword" class="glass-input" placeholder="Password">
+                </div>
+                <button class="btn-auth-submit" onclick="submitSignup()">Create Account</button>
+                <p class="auth-switch">Already have an account? <span onclick="toggleAuth('login')">Login here</span></p>
+            </div>
+            <button onclick="closeAuthModal()" style="background: none; border: none; color: #fff; margin-top: 1.5rem; cursor: pointer; width: 100%; opacity: 0.4; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Dismiss</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
