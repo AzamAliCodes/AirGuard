@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const app = express();
 app.use(cors());
@@ -136,7 +136,8 @@ app.get('/api/current-aqi/:locationId', async (req, res) => {
 
 app.get('/api/locations', async (req, res) => {
     if (!pool) {
-        return res.json(getMockLocations());
+        const locs = getMockLocations();
+        return res.json(locs.map(l => ({ ...l, isMock: true })));
     }
     try {
         const [rows] = await pool.query('SELECT * FROM LOCATION');
@@ -183,8 +184,8 @@ app.post('/api/auth/signup', async (req, res) => {
     }
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        const [result] = await pool.query('INSERT INTO USER (Username, Email, PasswordHash) VALUES (?, ?, ?)', [username, email, hashedPassword]);
-        const user = { id: result.insertId, username, email };
+        const [result] = await pool.query('INSERT INTO USER (UserID, UserName, FtnName, Email, Password) VALUES (UUID(), ?, ?, ?, ?)', [username, username, email, hashedPassword]);
+        const user = { id: result.insertId, username, fullName: username, email, updateRate: 60 };
         const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '1h' });
         res.status(201).json({ user, token });
     } catch (err) {
@@ -203,13 +204,33 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM USER WHERE Email = ?', [email]);
         if (rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
+        
         const user = rows[0];
-        const isMatch = await bcrypt.compare(password, user.PasswordHash);
+        
+        // For the demo: check if password is plain text or hashed
+        let isMatch = false;
+        if (user.Password.startsWith('$2')) {
+            isMatch = await bcrypt.compare(password, user.Password);
+        } else {
+            isMatch = (password === user.Password);
+        }
+
         if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
         
         const token = jwt.sign({ id: user.UserID }, JWT_SECRET, { expiresIn: '1h' });
-        res.json({ user: { id: user.UserID, username: user.Username, email: user.Email }, token });
+        // Sending all database fields to the frontend just in case
+        res.json({ 
+            user: { 
+                id: user.UserID, 
+                username: user.UserName, 
+                email: user.Email, 
+                FtnName: user.FtnName || user.ftnname || user.FTNNAME,
+                ...user // spread everything to guarantee it's there
+            }, 
+            token 
+        });
     } catch (err) {
+        console.error('Login Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -217,7 +238,7 @@ app.post('/api/auth/login', async (req, res) => {
 // --- Subscription & Alerts (Mocked for Demo) ---
 
 app.get('/api/subscriptions/:userId', async (req, res) => {
-    if (!pool) return res.json(['loc-001', 'loc-dal']); // Mock subs
+    if (!pool) return res.json(['loc-001']); // Mock subs
     try {
         const [rows] = await pool.query('SELECT LocationID FROM USER_LOCATION WHERE UserID = ?', [req.params.userId]);
         res.json(rows.map(r => r.LocationID));
@@ -282,3 +303,4 @@ app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     initDB();
 });
+;

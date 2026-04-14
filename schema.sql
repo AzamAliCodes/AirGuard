@@ -99,12 +99,29 @@ CREATE TABLE READING (
     UNIQUE (LocationID, PollutantID, Time)
 );
 INSERT INTO READING (ReadingID, Value, LocationID, PollutantID, Time) VALUES 
-  (UUID(), 24.52, 'loc-001', 'pol-001', NOW()),
-  (UUID(), 48.20, 'loc-002', 'pol-001', NOW()),
-  (UUID(), 110.55, 'loc-003', 'pol-001', NOW()),
-  (UUID(), 35.12, 'loc-004', 'pol-001', NOW()),
-  (UUID(), 12.00, 'loc-005', 'pol-001', NOW()),
-  (UUID(), 55.08, 'loc-006', 'pol-001', NOW());
+  -- Chennai (Optimal)
+  (UUID(), 12.50, 'loc-001', 'pol-001', NOW()), (UUID(), 28.10, 'loc-001', 'pol-002', NOW()), (UUID(), 15.20, 'loc-001', 'pol-003', NOW()), 
+  (UUID(), 0.45, 'loc-001', 'pol-004', NOW()), (UUID(), 22.10, 'loc-001', 'pol-005', NOW()), (UUID(), 8.30, 'loc-001', 'pol-006', NOW()),
+  
+  -- Mumbai (Moderate)
+  (UUID(), 48.20, 'loc-002', 'pol-001', NOW()), (UUID(), 85.00, 'loc-002', 'pol-002', NOW()), (UUID(), 38.40, 'loc-002', 'pol-003', NOW()), 
+  (UUID(), 1.80, 'loc-002', 'pol-004', NOW()), (UUID(), 45.30, 'loc-002', 'pol-005', NOW()), (UUID(), 12.50, 'loc-002', 'pol-006', NOW()),
+  
+  -- Delhi (CRITICAL - Edge Case)
+  (UUID(), 185.50, 'loc-003', 'pol-001', NOW()), (UUID(), 210.30, 'loc-003', 'pol-002', NOW()), (UUID(), 75.80, 'loc-003', 'pol-003', NOW()), 
+  (UUID(), 5.20, 'loc-003', 'pol-004', NOW()), (UUID(), 95.00, 'loc-003', 'pol-005', NOW()), (UUID(), 42.10, 'loc-003', 'pol-006', NOW()),
+  
+  -- Kolkata (Fair)
+  (UUID(), 38.12, 'loc-004', 'pol-001', NOW()), (UUID(), 62.40, 'loc-004', 'pol-002', NOW()), (UUID(), 28.50, 'loc-004', 'pol-003', NOW()), 
+  (UUID(), 1.10, 'loc-004', 'pol-004', NOW()), (UUID(), 35.20, 'loc-004', 'pol-005', NOW()), (UUID(), 15.60, 'loc-004', 'pol-006', NOW()),
+  
+  -- Hyderabad (Optimal)
+  (UUID(), 18.00, 'loc-005', 'pol-001', NOW()), (UUID(), 35.20, 'loc-005', 'pol-002', NOW()), (UUID(), 12.40, 'loc-005', 'pol-003', NOW()), 
+  (UUID(), 0.35, 'loc-005', 'pol-004', NOW()), (UUID(), 32.50, 'loc-005', 'pol-005', NOW()), (UUID(), 6.20, 'loc-005', 'pol-006', NOW()),
+  
+  -- Ahmedabad (Moderate)
+  (UUID(), 58.08, 'loc-006', 'pol-001', NOW()), (UUID(), 92.40, 'loc-006', 'pol-002', NOW()), (UUID(), 42.10, 'loc-006', 'pol-003', NOW()), 
+  (UUID(), 2.40, 'loc-006', 'pol-004', NOW()), (UUID(), 55.30, 'loc-006', 'pol-005', NOW()), (UUID(), 22.80, 'loc-006', 'pol-006', NOW());
 
 -- 7. RECOMMENDATION
 CREATE TABLE RECOMMENDATION (
