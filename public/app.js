@@ -81,7 +81,6 @@ function updateAuthUI() {
         if (authNav) authNav.classList.add('hidden');
         if (userNav) userNav.classList.remove('hidden');
         if (navUsername) navUsername.innerText = currentUser.username;
-        if (userInitial) userInitial.innerText = currentUser.username.charAt(0).toUpperCase();
         fetchSubscriptions();
     } else {
         if (authNav) authNav.classList.remove('hidden');
