@@ -47,6 +47,17 @@ Open your terminal in the project folder and run:
 
 ---
 
+## 💻 Tech Stack
+
+- **Frontend:** Vanilla JavaScript (ES6+), CSS3 (Glassmorphism), HTML5
+- **Backend:** Node.js, Express.js
+- **Database:** MySQL 8.0+
+- **Security:** JSON Web Tokens (JWT), Bcrypt.js (Password Hashing)
+- **Data Visualization:** Chart.js 4.4
+- **DevOps:** Dotenv (Environment Management)
+
+---
+
 ## 💎 Advanced DBMS Features
 
 This project is built to demonstrate intelligence-grade database management:
