@@ -77,28 +77,41 @@
         .auth-btns { display: flex; align-items: center; gap: 0.5rem; }
         
         .btn-ghost { 
-            background: transparent; border: none; color: var(--text-main); 
-            padding: 8px 16px; border-radius: 12px; font-weight: 600; font-size: 13px;
-            cursor: pointer; transition: 0.2s; opacity: 0.8;
+            background: rgba(255,255,255,0.08); 
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--text-main); 
+            padding: 6px 20px; border-radius: 100px; /* Oval shape */
+            font-weight: 700; font-size: 13px;
+            cursor: pointer; transition: 0.2s; opacity: 0.9;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
-        .btn-ghost:hover { opacity: 1; background: rgba(255,255,255,0.05); }
+        .btn-ghost:hover { opacity: 1; background: rgba(255,255,255,0.12); transform: translateY(-1px); }
 
         .btn-pill { 
             background: #fff; color: #000; border: none; 
             padding: 8px 20px; border-radius: 12px; font-weight: 700; font-size: 13px;
             cursor: pointer; transition: 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         .btn-pill:hover { transform: scale(1.05); }
 
         .user-profile {
-            display: flex; align-items: center; gap: 10px;
-            padding: 4px 12px 4px 4px; border-radius: 100px;
-            background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 16px; border-radius: 100px;
+            background: rgba(255,255,255,0.08); 
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); /* Re-added box shadow */
         }
-        .user-avatar {
-            width: 28px; height: 28px; background: var(--color-primary);
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 12px; color: white;
+        #navUsername {
+            font-weight: 800 !important;
+            color: #ffffff;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.8); /* Re-added stronger text shadow */
+            -webkit-text-stroke: none;
         }
 
         .location-summary { 
@@ -359,10 +372,11 @@
             </div>
             <div id="userNav" class="auth-btns hidden">
                 <div class="user-profile">
-                    <div class="user-avatar" id="userInitial">U</div>
                     <span id="navUsername" style="font-weight: 700;"></span>
                 </div>
-                <button class="btn-ghost" onclick="logout()" style="color: var(--color-red); opacity: 1;">Logout</button>
+                <button class="btn-icon glass" onclick="logout()" title="Logout" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.2); width: 32px; height: 32px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
             </div>
             <div class="badge-status"><div class="status-dot"></div> Live</div>
             <button class="btn-icon glass" id="notiBtn" onclick="toggleAlerts()">
