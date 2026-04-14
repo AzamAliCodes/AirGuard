@@ -21,35 +21,53 @@ async function init() {
         await connection.query(`USE ${dbName}`);
         console.log(`Using database: ${dbName}`);
 
-        const schema = fs.readFileSync('schema.sql', 'utf8');
-        // Filter out DELIMITER lines and split by semicolon
-        const statements = schema
-            .replace(/DELIMITER \/\//g, '')
-            .replace(/\/\/ DELIMITER ;/g, '')
-            .split(';')
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
+        // Function to execute SQL file
+        async function executeSqlFile(filePath) {
+            console.log(`Executing ${filePath}...`);
+            const sql = fs.readFileSync(filePath, 'utf8');
+            
+            // Split by DELIMITER blocks or semicolons
+            // This is a simple regex-based split that handles the DELIMITER // ... // DELIMITER ; pattern
+            const regex = /DELIMITER\s+(\S+)\s+([\s\S]+?)\s+\1\s+DELIMITER\s+;/g;
+            let lastIndex = 0;
+            let match;
 
-        for (let statement of statements) {
-            try {
-                await connection.query(statement);
-            } catch (err) {
-                // Ignore errors for DROP/CREATE if they are expected during re-init
-                if (!statement.includes('DROP TABLE')) {
-                    console.warn('Statement warning:', statement.substring(0, 50), '...', err.message);
+            while ((match = regex.exec(sql)) !== null) {
+                // Execute anything before the DELIMITER block
+                const before = sql.substring(lastIndex, match.index).split(';').map(s => s.trim()).filter(s => s.length > 0);
+                for (let statement of before) {
+                    await connection.query(statement).catch(err => {
+                        if (!statement.includes('DROP TABLE')) {
+                            console.warn('Statement warning:', statement.substring(0, 50), '...', err.message);
+                        }
+                    });
                 }
+
+                // Execute the block content
+                const blockContent = match[2].trim();
+                await connection.query(blockContent).catch(err => {
+                    console.warn('Block warning:', blockContent.substring(0, 50), '...', err.message);
+                });
+
+                lastIndex = regex.lastIndex;
+            }
+
+            // Execute remaining statements
+            const remaining = sql.substring(lastIndex).split(';').map(s => s.trim()).filter(s => s.length > 0);
+            for (let statement of remaining) {
+                await connection.query(statement).catch(err => {
+                    if (!statement.includes('DROP TABLE')) {
+                        console.warn('Statement warning:', statement.substring(0, 50), '...', err.message);
+                    }
+                });
             }
         }
 
-        // Add Dal Lake as the signature location
-        await connection.query(`
-            INSERT INTO LOCATION (LocationID, Name, State, Latitude, Longitude) 
-            VALUES ('loc-dal', 'Dal Lake', 'Jammu and Kashmir', 34.1130, 74.8710)
-            ON DUPLICATE KEY UPDATE Name = 'Dal Lake';
-        `);
+        await executeSqlFile('schema.sql');
+        await executeSqlFile('additions.sql');
 
         console.log('--- DB INIT COMPLETE ---');
-        console.log('Database and "Dal Lake" location are ready.');
+        console.log('Database is ready.');
     } catch (err) {
         console.error('Initialization failed:', err);
         console.log('\nTIP: Ensure your local MySQL server (XAMPP/WAMP/MySQL Installer) is RUNNING.');

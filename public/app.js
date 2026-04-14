@@ -191,12 +191,42 @@ async function submitSignup() {
     } catch (err) { console.error(err); }
 }
 
+// --- Notifications ---
+function showToast(title, msg) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'airguard-toast glass';
+    toast.innerHTML = `
+        <div class="toast-icon">⚠️</div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-msg">${msg}</div>
+        </div>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 500);
+    }, 5000);
+}
+
 // --- Data Orchestration ---
 async function fetchLocations() {
     try {
         const res = await fetch('/api/locations');
         if (res.ok) {
             allLocations = await res.json();
+            
+            // If any location is mock, show the card
+            const isMock = allLocations.some(l => l.isMock);
+            const card = document.getElementById('dbStatusCard');
+            if (isMock) {
+                if (card) card.classList.remove('hidden');
+            } else {
+                if (card) card.classList.add('hidden');
+            }
+
             syncDropdown();
         } else {
             fallbackLocations();
@@ -251,6 +281,28 @@ async function loadRealData() {
         const res = await fetch(`/api/current-aqi/${activeLocationId}`);
         const data = await res.json();
 
+        // Handle DB connection status UI
+        const card = document.getElementById('dbStatusCard');
+        const sourceBadge = document.getElementById('sourceBadge');
+        const sourceLabel = document.getElementById('sourceLabel');
+
+        if (data.isMock) {
+            if (card) card.classList.remove('hidden');
+            if (sourceBadge) sourceBadge.className = 'source-badge mock';
+            if (sourceLabel) sourceLabel.innerText = 'Simulated';
+            
+            // Show toast only once per mock state change
+            if (!window.dbErrorNotified) {
+                showToast('Database Error', 'Falling back to simulated sensor data.');
+                window.dbErrorNotified = true;
+            }
+        } else {
+            if (card) card.classList.add('hidden');
+            if (sourceBadge) sourceBadge.className = 'source-badge db';
+            if (sourceLabel) sourceLabel.innerText = 'Database';
+            window.dbErrorNotified = false;
+        }
+
         if (!data || !data.readings) {
             console.error('Invalid data received from server:', data);
             return;
@@ -260,15 +312,24 @@ async function loadRealData() {
         values = { aqi: 0, pm25: 0, pm10: 0, no2: 0, so2: 0, co: 0, o3: 0 };
         
         values.aqi = data.aqi || 0;
-        data.readings.forEach(r => {
-            // Map DB name to our internal key (e.g. "PM2.5" -> "pm25")
-            // The backend sends Pollutant_Name and Reading_Value
-            const rawName = r.Pollutant_Name || r.Pollutant || '';
-            const key = rawName.toLowerCase().replace('.', '').replace('₂', '2');
-            if (values.hasOwnProperty(key)) {
-                values[key] = parseFloat(r.Reading_Value || r.Value) || 0;
-            }
-        });
+        if (data.readings && data.readings.length > 0) {
+            data.readings.forEach(r => {
+                const rawName = (r.Pollutant_Name || r.Pollutant || '').toLowerCase();
+                let key = rawName.replace('.', '').replace('₂', '2');
+                
+                // Map shorthand to internal keys
+                if (key === 'carbon monoxide') key = 'co';
+                if (key === 'nitrogen dioxide') key = 'no2';
+                if (key === 'sulfur dioxide') key = 'so2';
+                if (key === 'ozone') key = 'o3';
+
+                if (values.hasOwnProperty(key)) {
+                    values[key] = parseFloat(r.Reading_Value || r.Value) || 0;
+                }
+            });
+        } else if (!data.isMock) {
+            showToast('Empty Database', 'Connected to MySQL but no sensor readings found. Run node db-init.js');
+        }
 
         updateUI();
     } catch (err) { 

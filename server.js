@@ -136,7 +136,8 @@ app.get('/api/current-aqi/:locationId', async (req, res) => {
 
 app.get('/api/locations', async (req, res) => {
     if (!pool) {
-        return res.json(getMockLocations());
+        const locs = getMockLocations();
+        return res.json(locs.map(l => ({ ...l, isMock: true })));
     }
     try {
         const [rows] = await pool.query('SELECT * FROM LOCATION');
@@ -217,7 +218,7 @@ app.post('/api/auth/login', async (req, res) => {
 // --- Subscription & Alerts (Mocked for Demo) ---
 
 app.get('/api/subscriptions/:userId', async (req, res) => {
-    if (!pool) return res.json(['loc-001', 'loc-dal']); // Mock subs
+    if (!pool) return res.json(['loc-001']); // Mock subs
     try {
         const [rows] = await pool.query('SELECT LocationID FROM USER_LOCATION WHERE UserID = ?', [req.params.userId]);
         res.json(rows.map(r => r.LocationID));
