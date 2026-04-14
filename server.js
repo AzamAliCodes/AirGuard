@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const app = express();
 app.use(cors());
@@ -184,8 +184,8 @@ app.post('/api/auth/signup', async (req, res) => {
     }
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        const [result] = await pool.query('INSERT INTO USER (UserID, UserName, Email, Password) VALUES (UUID(), ?, ?, ?)', [username, email, hashedPassword]);
-        const user = { id: result.insertId, username, email };
+        const [result] = await pool.query('INSERT INTO USER (UserID, UserName, FtnName, Email, Password) VALUES (UUID(), ?, ?, ?, ?)', [username, username, email, hashedPassword]);
+        const user = { id: result.insertId, username, fullName: username, email, updateRate: 60 };
         const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '1h' });
         res.status(201).json({ user, token });
     } catch (err) {
@@ -218,7 +218,17 @@ app.post('/api/auth/login', async (req, res) => {
         if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
         
         const token = jwt.sign({ id: user.UserID }, JWT_SECRET, { expiresIn: '1h' });
-        res.json({ user: { id: user.UserID, username: user.UserName, email: user.Email }, token });
+        // Sending all database fields to the frontend just in case
+        res.json({ 
+            user: { 
+                id: user.UserID, 
+                username: user.UserName, 
+                email: user.Email, 
+                FtnName: user.FtnName || user.ftnname || user.FTNNAME,
+                ...user // spread everything to guarantee it's there
+            }, 
+            token 
+        });
     } catch (err) {
         console.error('Login Error:', err);
         res.status(500).json({ error: err.message });
@@ -293,3 +303,4 @@ app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     initDB();
 });
+;

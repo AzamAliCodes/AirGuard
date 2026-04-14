@@ -193,6 +193,7 @@ async function submitSignup() {
 // --- Notifications ---
 function showToast(title, msg) {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = 'airguard-toast glass';
     toast.innerHTML = `
@@ -208,6 +209,21 @@ function showToast(title, msg) {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 500);
     }, 5000);
+}
+
+// --- User Info Modal ---
+function showUserInfoModal() {
+    if (!currentUser) return;
+    document.getElementById('infoUserID').innerText = currentUser.id || 'N/A';
+    document.getElementById('infoUsername').innerText = currentUser.username || 'N/A';
+    // Mapping FtnName correctly from the new server object
+    document.getElementById('infoFtnName').innerText = currentUser.FtnName || currentUser.ftnname || 'Not Provided';
+    document.getElementById('infoEmail').innerText = currentUser.email || 'N/A';
+    document.getElementById('userInfoModal').classList.remove('hidden');
+}
+
+function closeUserInfoModal() {
+    document.getElementById('userInfoModal').classList.add('hidden');
 }
 
 // --- Data Orchestration ---

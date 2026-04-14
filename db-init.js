@@ -1,6 +1,6 @@
 const mysql = require('mysql2/promise');
 const fs = require('fs');
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const dbConfig = {
     host: process.env.DB_HOST || 'localhost',
