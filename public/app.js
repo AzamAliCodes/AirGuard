@@ -75,7 +75,6 @@ function updateAuthUI() {
     const authNav = document.getElementById('authNav');
     const userNav = document.getElementById('userNav');
     const navUsername = document.getElementById('navUsername');
-    const userInitial = document.getElementById('userInitial');
     
     if (currentUser) {
         if (authNav) authNav.classList.add('hidden');
@@ -191,13 +190,23 @@ async function submitSignup() {
 }
 
 // --- Notifications ---
-function showToast(title, msg) {
+function showToast(title, msg, type = 'warning') {
     const container = document.getElementById('toastContainer');
     if (!container) return;
     const toast = document.createElement('div');
     toast.className = 'airguard-toast glass';
+    
+    let icon = '⚠️';
+    if (type === 'success') {
+        icon = '✅';
+        toast.style.borderLeft = '4px solid #10B981';
+    } else if (type === 'error') {
+        icon = '❌';
+        toast.style.borderLeft = '4px solid #ef4444';
+    }
+
     toast.innerHTML = `
-        <div class="toast-icon">⚠️</div>
+        <div class="toast-icon">${icon}</div>
         <div class="toast-content">
             <div class="toast-title">${title}</div>
             <div class="toast-msg">${msg}</div>
@@ -216,7 +225,6 @@ function showUserInfoModal() {
     if (!currentUser) return;
     document.getElementById('infoUserID').innerText = currentUser.id || 'N/A';
     document.getElementById('infoUsername').innerText = currentUser.username || 'N/A';
-    // Mapping FtnName correctly from the new server object
     document.getElementById('infoFtnName').innerText = currentUser.FtnName || currentUser.ftnname || 'Not Provided';
     document.getElementById('infoEmail').innerText = currentUser.email || 'N/A';
     document.getElementById('userInfoModal').classList.remove('hidden');
@@ -232,28 +240,16 @@ async function fetchLocations() {
         const res = await fetch('/api/locations');
         if (res.ok) {
             allLocations = await res.json();
-            
-            // If any location is mock, show the card
             const isMock = allLocations.some(l => l.isMock);
             const card = document.getElementById('dbStatusCard');
-            if (isMock) {
-                if (card) card.classList.remove('hidden');
-            } else {
-                if (card) card.classList.add('hidden');
-            }
-
+            if (isMock) { if (card) card.classList.remove('hidden'); }
+            else { if (card) card.classList.add('hidden'); }
             syncDropdown();
-        } else {
-            fallbackLocations();
-        }
-    } catch (err) { 
-        console.error('Database connection required for dynamic locations, using fallback', err);
-        fallbackLocations();
-    }
+        } else fallbackLocations();
+    } catch (err) { fallbackLocations(); }
 }
 
 function fallbackLocations() {
-    // Populate allLocations from the hardcoded HTML options if API fails
     const selector = document.getElementById('locationSelect');
     if (selector) {
         allLocations = Array.from(selector.options).map(opt => {
@@ -280,9 +276,7 @@ function changeLocation() {
     const selector = document.getElementById('locationSelect');
     if (selector && selector.value) {
         activeLocationId = selector.value;
-        console.log("Changing location to:", activeLocationId);
         loadRealData();
-        // fetchHistory(activeLocationId); // Disabled: Chart removed from UI
     }
 }
 
@@ -290,13 +284,10 @@ async function loadRealData() {
     try {
         const activeLoc = allLocations.find(l => l.LocationID === activeLocationId);
         if (!activeLoc) return;
-        
         document.getElementById('activeLocationName').innerText = `${activeLoc.Name}, ${activeLoc.State}`;
 
         const res = await fetch(`/api/current-aqi/${activeLocationId}`);
         const data = await res.json();
-
-        // Handle DB connection status UI
         const card = document.getElementById('dbStatusCard');
         const sourceBadge = document.getElementById('sourceBadge');
         const sourceLabel = document.getElementById('sourceLabel');
@@ -305,61 +296,33 @@ async function loadRealData() {
             if (card) card.classList.remove('hidden');
             if (sourceBadge) sourceBadge.className = 'source-badge mock';
             if (sourceLabel) sourceLabel.innerText = 'Simulated';
-            
-            // Show toast only once per mock state change
-            if (!window.dbErrorNotified) {
-                showToast('Database Error', 'Falling back to simulated sensor data.');
-                window.dbErrorNotified = true;
-            }
         } else {
             if (card) card.classList.add('hidden');
             if (sourceBadge) sourceBadge.className = 'source-badge db';
             if (sourceLabel) sourceLabel.innerText = 'Database';
-            window.dbErrorNotified = false;
         }
 
-        if (!data || !data.readings) {
-            console.error('Invalid data received from server:', data);
-            return;
-        }
-
-        // Reset values before populating from DB
         values = { aqi: 0, pm25: 0, pm10: 0, no2: 0, so2: 0, co: 0, o3: 0 };
-        
         values.aqi = data.aqi || 0;
         if (data.readings && data.readings.length > 0) {
             data.readings.forEach(r => {
-                const rawName = (r.Pollutant_Name || r.Pollutant || '').toLowerCase();
-                let key = rawName.replace('.', '').replace('₂', '2');
-                
-                // Map shorthand to internal keys
+                let key = (r.Pollutant_Name || r.Pollutant || '').toLowerCase().replace('.', '').replace('₂', '2');
                 if (key === 'carbon monoxide') key = 'co';
                 if (key === 'nitrogen dioxide') key = 'no2';
                 if (key === 'sulfur dioxide') key = 'so2';
                 if (key === 'ozone') key = 'o3';
-
-                if (values.hasOwnProperty(key)) {
-                    values[key] = parseFloat(r.Reading_Value || r.Value) || 0;
-                }
+                if (values.hasOwnProperty(key)) values[key] = parseFloat(r.Reading_Value || r.Value) || 0;
             });
-        } else if (!data.isMock) {
-            showToast('Empty Database', 'Connected to MySQL but no sensor readings found. Run node db-init.js');
         }
-
         updateUI();
-    } catch (err) { 
-        console.error('Error loading real data:', err);
-    }
+    } catch (err) { console.error(err); }
 }
 
 function updateUI() {
-    const pollutants = ['pm25', 'pm10', 'no2', 'co', 'o3', 'so2'];
-
-    pollutants.forEach(p => {
+    ['pm25', 'pm10', 'no2', 'co', 'o3', 'so2'].forEach(p => {
         const valEl = document.getElementById(`val-${p}`);
         const badgeEl = document.getElementById(`badge-${p}`);
         if (valEl) valEl.innerText = values[p].toFixed(2);
-
         const { cat, col } = getPollutantStatus(p, values[p]);
         if (badgeEl) {
             badgeEl.innerHTML = `<div class="p-status-dot" style="background: ${col}"></div>${cat}`;
@@ -373,168 +336,87 @@ function updateUI() {
     if (valAqiGridEl) valAqiGridEl.innerText = Math.round(values.aqi);
 
     let cat, col, desc;
-    if (values.aqi <= 50) { 
-        cat = 'Optimal'; 
-        col = 'var(--color-optimal)'; 
-        desc = 'Air quality is satisfactory, and air pollution poses little or no risk.';
-    }
-    else if (values.aqi <= 100) { 
-        cat = 'Moderate'; 
-        col = 'var(--color-moderate)'; 
-        desc = 'Air quality is acceptable. However, there may be a risk for some people.';
-    }
-    else { 
-        cat = 'Fair'; 
-        col = 'var(--color-fair)'; 
-        desc = 'Health alert: The risk of health effects is increased for everyone.';
-    }
-
-    const aqiHeroCard = document.getElementById('aqiHeroCard');
-    if (aqiHeroCard) {
-        aqiHeroCard.style.borderColor = col.replace(')', ', 0.3)').replace('var', 'rgba');
-    }
+    if (values.aqi <= 50) { cat = 'Optimal'; col = 'var(--color-optimal)'; desc = 'Air quality is satisfactory.'; }
+    else if (values.aqi <= 100) { cat = 'Moderate'; col = 'var(--color-moderate)'; desc = 'Air quality is acceptable.'; }
+    else { cat = 'Fair'; col = 'var(--color-fair)'; desc = 'Health alert: Risk is increased.'; }
 
     if (badgeAqiEl) {
         badgeAqiEl.innerText = cat;
         badgeAqiEl.style.color = col;
         badgeAqiEl.style.background = col.replace(')', ', 0.15)').replace('var', 'rgba');
     }
-
-    const summaryTitle = document.getElementById('summary-title');
     const summaryDesc = document.getElementById('summary-desc');
-
-    if (summaryTitle) {
-        summaryTitle.innerText = cat;
-        summaryTitle.style.color = col;
-    }
     if (summaryDesc) summaryDesc.innerText = desc;
-
     updateRecommendations(cat);
 }
 
 function getPollutantStatus(pollutant, value) {
     const val = parseFloat(value);
     let cat = 'Optimal', col = 'var(--color-optimal)';
-
-    const thresholds = {
-        pm25: [12, 35],
-        pm10: [54, 154],
-        no2: [53, 100],
-        so2: [35, 75],
-        co: [4.4, 9.4],
-        o3: [54, 70]
-    };
-
+    const thresholds = { pm25: [12, 35], pm10: [54, 154], no2: [53, 100], so2: [35, 75], co: [4.4, 9.4], o3: [54, 70] };
     const t = thresholds[pollutant];
     if (t) {
         if (val > t[1]) { cat = 'Fair'; col = 'var(--color-fair)'; }
         else if (val > t[0]) { cat = 'Moderate'; col = 'var(--color-moderate)'; }
     }
-
     return { cat, col };
 }
 
 function updateRecommendations(cat) {
     const recContainer = document.getElementById('recContainer');
     if (!recContainer) return;
-
-    let recs = [];
-    if (cat === 'Optimal') {
-        recs = [
-            { label: 'Outdoor Activities', val: 'Perfect for all outdoor exercise and play.', icon: '🍃' },
-            { label: 'Ventilation', val: 'Ideal time to open windows and air out indoor spaces.', icon: '🪟' },
-            { label: 'General Advice', val: 'No special health precautions required today.', icon: '✅' }
-        ];
-    } else if (cat === 'Fair') {
-        recs = [
-            { label: 'Sensitive Groups', val: 'Consider reducing intense outdoor exercise if sensitive.', icon: '🏃' },
-            { label: 'Ventilation', val: 'Keep windows closed if you notice any respiratory discomfort.', icon: '🚪' },
-            { label: 'General Advice', val: 'Air quality is acceptable for the general public.', icon: '⚠️' }
-        ];
-    } else {
-        recs = [
-            { label: 'Health Alert', val: 'Stay indoors. Avoid all physical exertion outside.', icon: '🏠' },
-            { label: 'Filtration', val: 'Use air purifiers and keep all entry points sealed.', icon: '🔒' },
-            { label: 'Protective Gear', val: 'Wear a certified N95 mask for any necessary travel.', icon: '😷' }
-        ];
-    }
-
+    let recs = cat === 'Optimal' ? [
+        { label: 'Outdoor Activities', val: 'Perfect for all outdoor exercise.', icon: '🍃' },
+        { label: 'General Advice', val: 'No special health precautions required.', icon: '✅' }
+    ] : [
+        { label: 'Health Alert', val: 'Stay indoors if sensitive.', icon: '🏠' },
+        { label: 'Advice', val: 'Avoid exertion outdoors.', icon: '⚠️' }
+    ];
     recContainer.innerHTML = recs.map(r => `
-        <div class="glass insight-card bulletin-item" style="border-bottom: none; background: rgba(255,255,255,0.02) !important;">
+        <div class="glass insight-card bulletin-item" style="background: rgba(255,255,255,0.02) !important;">
             <div class="bulletin-icon">${r.icon}</div>
-            <div class="bulletin-content">
-                <span class="bulletin-label">${r.label}</span>
-                <span class="bulletin-text">${r.val}</span>
-            </div>
+            <div class="bulletin-content"><span class="bulletin-label">${r.label}</span><span class="bulletin-text">${r.val}</span></div>
         </div>
     `).join('');
 }
 
-
-async function fetchHistory(locationId) {
+async function manualSync() {
+    const btn = document.getElementById('refreshBtn');
+    const icon = document.getElementById('refreshIcon');
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    icon.style.animation = 'spin 1s linear infinite';
+    btn.style.opacity = '0.5';
     try {
-        const res = await fetch(`/api/history/${locationId}`);
-        const data = await res.json();
-        renderChart(data);
-    } catch (err) { console.error(err); }
-}
-
-function renderChart(data) {
-    const canvas = document.getElementById('trendChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (trendChart) trendChart.destroy();
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-    gradient.addColorStop(0, 'rgba(16, 185, 129, 0.2)');
-    gradient.addColorStop(1, 'transparent');
-
-    trendChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: data.map(d => new Date(d.Time || d.Timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
-            datasets: [{ 
-                label: 'AQI', 
-                data: data.map(d => d.Value), 
-                borderColor: '#10B981', 
-                borderWidth: 3,
-                pointRadius: 4,
-                pointBackgroundColor: '#10B981',
-                pointBorderColor: 'rgba(255,255,255,0.1)',
-                tension: 0.4, 
-                fill: true, 
-                backgroundColor: gradient
-            }]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { legend: { display: false } }, 
-            scales: { 
-                y: { display: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 } } }, 
-                x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 } } } 
-            } 
-        }
-    });
-}
-
-async function fetchSafetyReport() {
-    try {
-        const res = await fetch(`/api/safety-report/${activeLocationId}`);
-        const data = await res.json();
-        let reportText = "Location Safety Summary (SQL Cursor Output):\n\n";
-        data.forEach(item => {
-            reportText += `${item.pol_name}: Avg ${parseFloat(item.avg_val).toFixed(2)}\n`;
+        const res = await fetch('/api/sync-now', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ locationId: activeLocationId })
         });
-        alert(reportText);
-    } catch (err) { alert("Stored Procedure call requires active database connection."); }
+        const data = await res.json();
+        if (data.success) {
+            setTimeout(() => {
+                loadRealData();
+                if (data.count > 0) {
+                    showToast('Sync Successful', data.message, 'success');
+                } else {
+                    // Use the specific message from the server (e.g., "API Key missing")
+                    showToast('Sync Incomplete', data.message || 'API returned no new data.', 'warning');
+                }
+            }, 500);
+        } else showToast('Sync Error', data.error || 'Failed to fetch data.', 'error');
+    } catch (err) { showToast('Sync Error', 'Check server logs.', 'error'); }
+    finally { setTimeout(() => { btn.disabled = false; icon.style.animation = 'none'; btn.style.opacity = '1'; }, 1000); }
 }
 
-// --- Lifecycle ---
+const style = document.createElement('style');
+style.innerHTML = `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
+document.head.appendChild(style);
+
 window.onload = () => {
     updateAuthUI();
     fetchLocations();
     fetchAlerts();
     setInterval(loadRealData, 60000);
-    setInterval(fetchAlerts, 30000); // Check for alerts every 30 seconds
+    setInterval(fetchAlerts, 30000);
 };

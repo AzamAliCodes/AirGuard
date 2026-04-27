@@ -419,12 +419,15 @@
     <div class="main-dashboard-content">
         <div class="dashboard-left">
             <div class="module-header">
-                <div style="display: flex; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
                     <h3 class="module-title">Atmospheric Analysis</h3>
                     <div id="sourceBadge" class="source-badge db">
                         <div class="source-dot"></div>
                         <span id="sourceLabel">Database</span>
                     </div>
+                    <button id="refreshBtn" class="btn-icon glass" onclick="manualSync()" title="Refresh Live Data" style="width: 28px; height: 28px; border-radius: 8px;">
+                        <svg id="refreshIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    </button>
                 </div>
             </div>
 
