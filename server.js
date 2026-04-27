@@ -28,6 +28,20 @@ const path = require('path');
 
 let syncInterval;
 
+// --- Logging Setup ---
+const logDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir);
+}
+const logFile = path.join(logDir, 'sync.txt');
+
+function logActivity(message) {
+    const timestamp = new Date().toLocaleString();
+    const separator = "--------------------------------------------------------------------------------";
+    const logLine = `\n${separator}\n[${timestamp}]\n${message}\n${separator}\n`;
+    fs.appendFileSync(logFile, logLine, 'utf8');
+}
+
 async function initDB() {
     try {
         const connection = await mysql.createConnection({
@@ -41,7 +55,7 @@ async function initDB() {
 
         pool = await mysql.createPool({ ...dbConfig, multipleStatements: true });
         console.log(`Connected to AirGuard MySQL database: ${dbConfig.database}`);
-        
+
         const [tables] = await pool.query('SHOW TABLES');
         if (tables.length === 0) {
             const schemaPath = path.join(__dirname, 'schema.sql');
@@ -88,8 +102,9 @@ app.post('/api/sync-now', async (req, res) => {
 
 async function initLiveDataSync(targetLocationId = null) {
     if (!pool) return { totalInserted: 0, message: 'Database disconnected.', type: 'error' };
-    
-    console.log(`🔄 [${targetLocationId ? 'Manual' : 'Background'} Sync] Fetching live data...`);
+
+    const syncType = targetLocationId ? 'Manual' : 'Background';
+    console.log(`🔄 [${syncType} Sync] Fetching live data...`);
 
     if (!process.env.OPENAQ_API_KEY || process.env.OPENAQ_API_KEY === 'your_api_key_here' || process.env.OPENAQ_API_KEY === '') {
         console.warn('❗ [Sync Error] Sync skipped: No OPENAQ_API_KEY found in .env');
@@ -104,9 +119,14 @@ async function initLiveDataSync(targetLocationId = null) {
         if (targetLocationId) {
             const [rows] = await pool.query('SELECT * FROM LOCATION WHERE LocationID = ?', [targetLocationId]);
             locations = rows;
+            if (locations.length > 0) {
+                const sel = locations[0];
+                logActivity(`[Dropdown Selected]: ${sel.Name}${sel.State ? ', ' + sel.State : ''}`);
+            }
         } else {
             const [rows] = await pool.query('SELECT * FROM LOCATION');
             locations = rows;
+            logActivity(`[Scheduled Action] Starting Background Sync for all ${locations.length} locations.`);
         }
 
         const [pollutants] = await pool.query('SELECT * FROM POLLUTANT');
@@ -115,20 +135,26 @@ async function initLiveDataSync(targetLocationId = null) {
 
         for (const loc of locations) {
             try {
+                const locationName = `${loc.Name}${loc.State ? ', ' + loc.State : ''}`;
+                const coords = `${parseFloat(loc.Latitude).toFixed(4)},${parseFloat(loc.Longitude).toFixed(4)}`;
+
+                logActivity(`[Syncing Location] ${locationName}\n[API Request] GET /v3/locations | Params: { coordinates: ${coords}, radius: 25000 }`);
+
                 const searchRes = await axios.get(`https://api.openaq.org/v3/locations`, {
-                    params: { 
-                        coordinates: `${parseFloat(loc.Latitude).toFixed(4)},${parseFloat(loc.Longitude).toFixed(4)}`, 
-                        radius: 25000, 
-                        limit: 1 
+                    params: {
+                        coordinates: coords,
+                        radius: 25000,
+                        limit: 1
                     },
                     headers: { 'User-Agent': 'AirGuard/1.0', 'X-API-Key': process.env.OPENAQ_API_KEY }
                 });
 
                 if (searchRes.data.results?.length > 0) {
                     const station = searchRes.data.results[0];
+                    logActivity(`[API Response] Found Station: "${station.name}" (ID: ${station.id}) for City: ${loc.Name}`);
                     console.log(`📍 [Match Found] City: ${loc.Name} -> Station: "${station.name}" (ID: ${station.id})`);
 
-                    // In OpenAQ v3, the /latest endpoint only gives sensor IDs. 
+                    // In OpenAQ v3, the /latest endpoint only gives sensor IDs.
                     // We need to map sensor IDs to parameter names from the station's sensor list.
                     const sensorMap = {};
                     if (station.sensors) {
@@ -137,9 +163,11 @@ async function initLiveDataSync(targetLocationId = null) {
                         });
                     }
 
+                    logActivity(`[API Request] GET /v3/locations/${station.id}/latest`);
                     const latestRes = await axios.get(`https://api.openaq.org/v3/locations/${station.id}/latest`, {
                         headers: { 'User-Agent': 'AirGuard/1.0', 'X-API-Key': process.env.OPENAQ_API_KEY }
                     });
+                    logActivity(`[API Response] Latest results for ${station.id}: ${JSON.stringify(latestRes.data.results)}`);
 
                     if (latestRes.data.results?.length > 0) {
                         for (const m of latestRes.data.results) {
@@ -148,35 +176,40 @@ async function initLiveDataSync(targetLocationId = null) {
 
                             if (pId) {
                                 const time = new Date(m.datetime.utc).toISOString().slice(0, 19).replace('T', ' ');
-                                await pool.query(
-                                    'INSERT INTO READING (ReadingID, Value, LocationID, PollutantID, Time) VALUES (UUID(), ?, ?, ?, ?) ON DUPLICATE KEY UPDATE Value = VALUES(Value)',
-                                    [m.value, loc.LocationID, pId, time]
-                                );
+                                const sql = 'INSERT INTO READING (ReadingID, Value, LocationID, PollutantID, Time) VALUES (UUID(), ?, ?, ?, ?) ON DUPLICATE KEY UPDATE Value = VALUES(Value)';
+                                const vals = [m.value, loc.LocationID, pId, time];
+
+                                logActivity(`[DB Query] ${sql} | Values: [${vals.join(', ')}]`);
+                                await pool.query(sql, vals);
                                 totalInserted++;
                             }
                         }
                     } else {
+                        logActivity(`[Sync Warning] Station "${station.name}" has no recent readings.`);
                         console.log(`⚠️ [No Data] Station "${station.name}" found, but it has no recent readings.`);
                     }
                 } else {
+                    logActivity(`[Sync Warning] City "${loc.Name}" not found in OpenAQ v3.`);
                     console.warn(`❓ [Not Found] City "${loc.Name}" was not found in the OpenAQ v3 database.`);
-                    cityErrors.push(loc.Name);
                 }
             } catch (err) {
-                if (err.response?.status === 401) { 
+                if (err.response?.status === 401) {
+                    logActivity(`[API Error] 401 Unauthorized - Check API Key.`);
                     console.error('❌ [Auth Error] Your OPENAQ_API_KEY is INVALID or not active. Check your .env file.');
-                    authError = true; 
-                    break; 
+                    authError = true;
+                    break;
                 }
                 if (err.response?.status === 422) {
+                    logActivity(`[API Error] 422 Unprocessable Content: ${JSON.stringify(err.response.data)}`);
                     console.error(`❌ [Validation Error] OpenAQ rejected request for ${loc.Name}:`, JSON.stringify(err.response.data));
                 }
+                logActivity(`[Sync Error] Failed for ${loc.Name}: ${err.message}`);
                 console.warn(`⚠️ [API Error] Sync failed for ${loc.Name}: ${err.message}`);
             }
         }
 
         if (authError) return { totalInserted: 0, message: 'Invalid API Key. Please check your .env.', type: 'error' };
-        
+
         console.log(`✅ [Background Sync] Completed. Inserted/Updated ${totalInserted} live readings.`);
 
         if (totalInserted === 0) return { totalInserted: 0, message: 'API returned no new data for your cities.', type: 'warning' };
