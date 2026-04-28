@@ -98,16 +98,16 @@ app.post('/api/sync-now', async (req, res) => {
     }
 });
 
-// --- Real-Time Data Synchronization (OpenAQ API) ---
+// --- Real-Time Data Synchronization (OpenWeatherMap API) ---
 
 async function initLiveDataSync(targetLocationId = null) {
     if (!pool) return { totalInserted: 0, message: 'Database disconnected.', type: 'error' };
 
     const syncType = targetLocationId ? 'Manual' : 'Background';
-    console.log(`🔄 [${syncType} Sync] Fetching live data...`);
+    console.log(`🔄 [${syncType} Sync] Fetching live data from OpenWeatherMap...`);
 
-    if (!process.env.OPENAQ_API_KEY || process.env.OPENAQ_API_KEY === 'your_api_key_here' || process.env.OPENAQ_API_KEY === '') {
-        console.warn('❗ [Sync Error] Sync skipped: No OPENAQ_API_KEY found in .env');
+    if (!process.env.OWM_API_KEY || process.env.OWM_API_KEY === 'your_openweather_api_key_here' || process.env.OWM_API_KEY === '') {
+        console.warn('❗ [Sync Error] Sync skipped: No OWM_API_KEY found in .env');
         return { totalInserted: 0, message: 'API Key is missing in .env file.', type: 'error' };
     }
 
@@ -131,77 +131,52 @@ async function initLiveDataSync(targetLocationId = null) {
 
         const [pollutants] = await pool.query('SELECT * FROM POLLUTANT');
         const pollutantMap = {};
+        // Map common keys to DB IDs (e.g., pm2_5 -> pm25)
         pollutants.forEach(p => pollutantMap[p.Name.toLowerCase().replace('.', '')] = p.PollutantID);
 
         for (const loc of locations) {
             try {
                 const locationName = `${loc.Name}${loc.State ? ', ' + loc.State : ''}`;
-                const coords = `${parseFloat(loc.Latitude).toFixed(4)},${parseFloat(loc.Longitude).toFixed(4)}`;
+                logActivity(`[Syncing Location] ${locationName}\n[API Request] GET /data/2.5/air_pollution | Params: { lat: ${loc.Latitude}, lon: ${loc.Longitude} }`);
 
-                logActivity(`[Syncing Location] ${locationName}\n[API Request] GET /v3/locations | Params: { coordinates: ${coords}, radius: 25000 }`);
-
-                const searchRes = await axios.get(`https://api.openaq.org/v3/locations`, {
+                const res = await axios.get(`http://api.openweathermap.org/data/2.5/air_pollution`, {
                     params: {
-                        coordinates: coords,
-                        radius: 25000,
-                        limit: 1
-                    },
-                    headers: { 'User-Agent': 'AirGuard/1.0', 'X-API-Key': process.env.OPENAQ_API_KEY }
+                        lat: loc.Latitude,
+                        lon: loc.Longitude,
+                        appid: process.env.OWM_API_KEY
+                    }
                 });
 
-                if (searchRes.data.results?.length > 0) {
-                    const station = searchRes.data.results[0];
-                    logActivity(`[API Response] Found Station: "${station.name}" (ID: ${station.id}) for City: ${loc.Name}`);
-                    console.log(`📍 [Match Found] City: ${loc.Name} -> Station: "${station.name}" (ID: ${station.id})`);
+                if (res.data.list?.length > 0) {
+                    const components = res.data.list[0].components;
+                    const timestamp = new Date(res.data.list[0].dt * 1000).toISOString().slice(0, 19).replace('T', ' ');
+                    
+                    logActivity(`[API Response] Data received for ${loc.Name}: ${JSON.stringify(components)}`);
 
-                    // In OpenAQ v3, the /latest endpoint only gives sensor IDs.
-                    // We need to map sensor IDs to parameter names from the station's sensor list.
-                    const sensorMap = {};
-                    if (station.sensors) {
-                        station.sensors.forEach(s => {
-                            sensorMap[s.id] = s.parameter.name.toLowerCase().replace('.', '');
-                        });
-                    }
+                    for (const [key, value] of Object.entries(components)) {
+                        // Normalize key (e.g., pm2_5 -> pm25)
+                        const normalizedKey = key.replace('_', '');
+                        const pId = pollutantMap[normalizedKey];
 
-                    logActivity(`[API Request] GET /v3/locations/${station.id}/latest`);
-                    const latestRes = await axios.get(`https://api.openaq.org/v3/locations/${station.id}/latest`, {
-                        headers: { 'User-Agent': 'AirGuard/1.0', 'X-API-Key': process.env.OPENAQ_API_KEY }
-                    });
-                    logActivity(`[API Response] Latest results for ${station.id}: ${JSON.stringify(latestRes.data.results)}`);
+                        if (pId) {
+                            const pollutantName = key.toUpperCase().replace('PM2_5', 'PM2.5').replace('PM10', 'PM10');
+                            const sql = 'INSERT INTO READING (ReadingID, Value, LocationID, PollutantID, Time) VALUES (UUID(), ?, ?, ?, ?) ON DUPLICATE KEY UPDATE Value = VALUES(Value)';
+                            const vals = [value, loc.LocationID, pId, timestamp];
 
-                    if (latestRes.data.results?.length > 0) {
-                        for (const m of latestRes.data.results) {
-                            const paramName = sensorMap[m.sensorsId];
-                            const pId = paramName ? pollutantMap[paramName] : null;
-
-                            if (pId) {
-                                const time = new Date(m.datetime.utc).toISOString().slice(0, 19).replace('T', ' ');
-                                const sql = 'INSERT INTO READING (ReadingID, Value, LocationID, PollutantID, Time) VALUES (UUID(), ?, ?, ?, ?) ON DUPLICATE KEY UPDATE Value = VALUES(Value)';
-                                const vals = [m.value, loc.LocationID, pId, time];
-
-                                logActivity(`[DB Query] ${sql} | Values: [${vals.join(', ')}]`);
-                                await pool.query(sql, vals);
-                                totalInserted++;
-                            }
+                            logActivity(`[DB Action] Inserting ${pollutantName} level for ${loc.Name}\n[Query] ${sql} | Values: [${vals.join(', ')}]`);
+                            await pool.query(sql, vals);
+                            totalInserted++;
                         }
-                    } else {
-                        logActivity(`[Sync Warning] Station "${station.name}" has no recent readings.`);
-                        console.log(`⚠️ [No Data] Station "${station.name}" found, but it has no recent readings.`);
                     }
                 } else {
-                    logActivity(`[Sync Warning] City "${loc.Name}" not found in OpenAQ v3.`);
-                    console.warn(`❓ [Not Found] City "${loc.Name}" was not found in the OpenAQ v3 database.`);
+                    logActivity(`[Sync Warning] No data returned for ${loc.Name}`);
                 }
             } catch (err) {
                 if (err.response?.status === 401) {
-                    logActivity(`[API Error] 401 Unauthorized - Check API Key.`);
-                    console.error('❌ [Auth Error] Your OPENAQ_API_KEY is INVALID or not active. Check your .env file.');
+                    logActivity(`[API Error] 401 Unauthorized - Check OWM_API_KEY.`);
+                    console.error('❌ [Auth Error] Your OWM_API_KEY is INVALID. Check your .env file.');
                     authError = true;
                     break;
-                }
-                if (err.response?.status === 422) {
-                    logActivity(`[API Error] 422 Unprocessable Content: ${JSON.stringify(err.response.data)}`);
-                    console.error(`❌ [Validation Error] OpenAQ rejected request for ${loc.Name}:`, JSON.stringify(err.response.data));
                 }
                 logActivity(`[Sync Error] Failed for ${loc.Name}: ${err.message}`);
                 console.warn(`⚠️ [API Error] Sync failed for ${loc.Name}: ${err.message}`);
@@ -210,9 +185,7 @@ async function initLiveDataSync(targetLocationId = null) {
 
         if (authError) return { totalInserted: 0, message: 'Invalid API Key. Please check your .env.', type: 'error' };
 
-        console.log(`✅ [Background Sync] Completed. Inserted/Updated ${totalInserted} live readings.`);
-
-        if (totalInserted === 0) return { totalInserted: 0, message: 'API returned no new data for your cities.', type: 'warning' };
+        console.log(`✅ [Background Sync] Completed. Inserted/Updated ${totalInserted} readings from OpenWeatherMap.`);
         return { totalInserted };
     } catch (err) {
         console.error('❌ [Critical Error] Sync failed:', err.message);

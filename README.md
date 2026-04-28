@@ -31,6 +31,9 @@ DB_PASSWORD=your_mysql_password
 DB_NAME=airguard
 PORT=3000
 JWT_SECRET=supersecretkey123
+
+# OpenWeatherMap API Key (Get free key at https://openweathermap.org/api)
+OWM_API_KEY=your_openweather_api_key_here
 ```
 
 ---
