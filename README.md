@@ -38,7 +38,7 @@ OWM_API_KEY=your_openweather_api_key_here
 
 ---
 
-## 🛠 One-Click Deployment (Terminal)
+## 🛠 Local Setup & Execution
 
 Open your terminal in the project folder and run:
 
@@ -55,9 +55,19 @@ Open your terminal in the project folder and run:
 - **Frontend:** Vanilla JavaScript (ES6+), CSS3 (Glassmorphism), HTML5
 - **Backend:** Node.js, Express.js
 - **Database:** MySQL 8.0+
-- **Security:** JSON Web Tokens (JWT), Bcrypt.js (Password Hashing)
+- **API Integration:** OpenWeatherMap Air Pollution API (Real-time data)
+- **Security:** JSON Web Tokens (JWT), Bcrypt.js
 - **Data Visualization:** Chart.js 4.4
-- **DevOps:** Dotenv (Environment Management)
+
+---
+
+## 🛰️ Real-Time Intelligence
+
+AirGuard doesn't just store data; it actively breathes with the world:
+- **Automatic Sync:** Every 15 minutes, the backend queries OpenWeatherMap for the latest pollutant concentrations.
+- **Precision Tracking:** Monitors PM2.5, PM10, NO2, SO2, CO, and O3.
+- **Relational Integrity:** API responses are parsed and mapped to the normalized `READING` table with atomic precision.
+- **Manual Override:** Users can trigger a real-time "Sync Now" for their selected city directly from the dashboard.
 
 ---
 
