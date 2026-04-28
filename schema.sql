@@ -18,7 +18,7 @@ CREATE TABLE WEATHER_API (
     Name VARCHAR(100) NOT NULL,
     EndpointURL VARCHAR(255) NOT NULL
 );
-INSERT INTO WEATHER_API VALUES ('api-001', 'OpenAQ Global Network', 'https://api.openaq.org/v2/latest');
+INSERT INTO WEATHER_API VALUES ('api-001', 'OpenWeatherMap Air Pollution API', 'http://api.openweathermap.org/data/2.5/air_pollution');
 
 -- 2. LOCATION
 CREATE TABLE LOCATION (
