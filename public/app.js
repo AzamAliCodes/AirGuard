@@ -79,7 +79,7 @@ function updateAuthUI() {
     if (currentUser) {
         if (authNav) authNav.classList.add('hidden');
         if (userNav) userNav.classList.remove('hidden');
-        if (navUsername) navUsername.innerText = currentUser.username;
+        if (navUsername) navUsername.innerText = currentUser.FtnName || currentUser.ftnname || currentUser.username;
         fetchSubscriptions();
     } else {
         if (authNav) authNav.classList.remove('hidden');

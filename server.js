@@ -66,6 +66,10 @@ async function initDB() {
                 console.log('Database initialized successfully from schema.sql');
             }
         }
+        
+        // Ensure AQI exists as a distinct "pollutant" so we can store it as a separate reading row
+        await pool.query("INSERT IGNORE INTO POLLUTANT (PollutantID, Name, Unit, SafeThreshold) VALUES ('pol-aqi', 'AQI', 'Index', 100)");
+
         console.log('Database sync complete.');
         startSyncInterval();
     } catch (err) {
@@ -149,10 +153,26 @@ async function initLiveDataSync(targetLocationId = null) {
 
                 if (res.data.list?.length > 0) {
                     const components = res.data.list[0].components;
+                    const owmAqi = res.data.list[0].main?.aqi || 'N/A';
+                    const computedAqi = components.pm2_5 ? Math.round(parseFloat(components.pm2_5) * 2.5) : 0;
                     const timestamp = new Date(res.data.list[0].dt * 1000).toISOString().slice(0, 19).replace('T', ' ');
                     
-                    logActivity(`[API Response] Data received for ${loc.Name}: ${JSON.stringify(components)}`);
+                    // Consolidated JSON log for the API response
+                    const consolidatedData = {
+                        index: owmAqi,
+                        aqi: computedAqi,
+                        ...components
+                    };
+                    logActivity(`[API Response] Data received for ${loc.Name}: ${JSON.stringify(consolidatedData)}`);
 
+                    // 1. Explicitly insert/update the Computed AQI FIRST as requested
+                    const aqiSql = 'INSERT INTO READING (ReadingID, Value, LocationID, PollutantID, Time) VALUES (UUID(), ?, ?, ?, ?) ON DUPLICATE KEY UPDATE Value = VALUES(Value)';
+                    const aqiVals = [computedAqi, loc.LocationID, 'pol-aqi', timestamp];
+                    logActivity(`[DB Action] Updating AQI Index for ${loc.Name}\n[Query] ${aqiSql} | Values: [${aqiVals.join(', ')}]`);
+                    await pool.query(aqiSql, aqiVals);
+                    totalInserted++;
+
+                    // 2. Then insert individual pollutants
                     for (const [key, value] of Object.entries(components)) {
                         // Normalize key (e.g., pm2_5 -> pm25)
                         const normalizedKey = key.replace('_', '');
@@ -253,8 +273,9 @@ app.post('/api/auth/signup', async (req, res) => {
     if (!pool) return res.json({ user: { id: 999, username, email }, token: 'mock-token' });
     try {
         const hashed = await bcrypt.hash(password, 10);
-        await pool.query('INSERT INTO USER (UserID, UserName, FtnName, Email, Password) VALUES (UUID(), ?, ?, ?, ?)', [username, username, email, hashed]);
-        res.status(201).json({ user: { username, email }, token: 'new-token' });
+        const userId = crypto.randomUUID();
+        await pool.query('INSERT INTO USER (UserID, UserName, FtnName, Email, Password) VALUES (?, ?, ?, ?, ?)', [userId, username, username, email, hashed]);
+        res.status(201).json({ user: { id: userId, username, email, FtnName: username }, token: 'new-token' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -268,7 +289,7 @@ app.post('/api/auth/login', async (req, res) => {
         const match = user.Password.startsWith('$2') ? await bcrypt.compare(password, user.Password) : (password === user.Password);
         if (!match) return res.status(401).json({ error: 'Invalid credentials' });
         const token = jwt.sign({ id: user.UserID }, JWT_SECRET, { expiresIn: '1h' });
-        res.json({ user: { id: user.UserID, username: user.UserName, email: user.Email }, token });
+        res.json({ user: { id: user.UserID, username: user.UserName, email: user.Email, FtnName: user.FtnName }, token });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
